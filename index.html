@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PH Scholarship Grants Tracker</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --card-bg: #f5f5f5;
+    --sidebar-bg: #fafafa;
+    --border: #e0e0e0;
+    --accent: #0a5bd7;
+    --warn: #b7791f;
+    --muted: #666666;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212;
+      --fg: #e8e8e8;
+      --card-bg: #1e1e1e;
+      --sidebar-bg: #181818;
+      --border: #333333;
+      --accent: #5b9dff;
+      --warn: #e0b04a;
+      --muted: #a0a0a0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    margin: 0;
+  }
+  header.page-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  header.page-header h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+  header.page-header .subtitle { color: var(--muted); margin: 0; font-size: 0.9rem; }
+
+  .layout {
+    display: flex;
+    align-items: flex-start;
+    max-width: 1100px;
+    margin-inline: auto;
+  }
+
+  aside.sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    padding: 1.5rem 1rem;
+    border-right: 1px solid var(--border);
+    background: var(--sidebar-bg);
+    min-height: calc(100vh - 80px);
+  }
+  .filter-group { margin-bottom: 1.5rem; }
+  .filter-group h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 0 0 0.6rem;
+  }
+  .filter-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--fg);
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+  }
+  .filter-option:hover { background: var(--card-bg); }
+  .filter-option.active { background: var(--accent); color: #ffffff; }
+
+  main.results {
+    flex: 1;
+    padding: 1.5rem;
+    min-width: 0;
+  }
+  .results-count { color: var(--muted); font-size: 0.85rem; margin: 0 0 1rem; }
+
+  .grant-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+  }
+  .grant-title { font-weight: 600; margin: 0 0 0.25rem; }
+  .grant-deadline { color: var(--accent); font-weight: 600; font-size: 0.9rem; }
+  .grant-deadline.closing-soon { color: var(--warn); }
+  .grant-deadline.manual { color: var(--muted); font-style: italic; }
+  .grant-description { color: var(--muted); font-size: 0.9rem; margin: 0.4rem 0; }
+  .grant-meta { font-size: 0.8rem; color: var(--muted); display: flex; justify-content: space-between; margin-top: 0.5rem; }
+  .grant-meta a { color: var(--fg); }
+  #empty-state, #fetch-error { color: var(--muted); text-align: center; padding: 2rem 0; }
+  #scraper-status { color: var(--muted); font-size: 0.8rem; margin-top: 1.5rem; }
+  #scraper-status summary { cursor: pointer; }
+  #scraper-status ul { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+
+  @media (max-width: 700px) {
+    .layout { flex-direction: column; }
+    aside.sidebar { width: 100%; min-height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+  <header class="page-header">
+    <h1>PH Scholarship Grants Tracker</h1>
+    <p class="subtitle">Philippine scholarship and grant opportunities, scraped daily. Sorted by soonest deadline.</p>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="filter-group">
+        <h2>Category</h2>
+        <div id="category-filters"></div>
+      </div>
+      <div class="filter-group">
+        <h2>Level</h2>
+        <div id="level-filters"></div>
+      </div>
+    </aside>
+    <main class="results">
+      <p class="results-count" id="results-count"></p>
+      <div id="grants"></div>
+      <div id="empty-state" style="display:none;">No grants match this filter.</div>
+      <details id="scraper-status" style="display:none;">
+        <summary>Scraper status</summary>
+        <ul id="scraper-errors"></ul>
+      </details>
+    </main>
+  </div>
+
+  <script>
+    const CATEGORIES = ["government", "private", "global", "ngo"];
+    const LEVELS = ["undergrad", "graduate", "professional"];
+    const CLOSING_SOON_DAYS = 14;
+    let allGrants = [];
+    let activeCategory = "all";
+    let activeLevel = "all";
+
+    function daysUntil(dateStr) {
+      const diffMs = new Date(dateStr + "T00:00:00").getTime() - Date.now();
+      return Math.floor(diffMs / 86400000);
+    }
+
+    function renderFilterGroup(containerId, options, active, onSelect) {
+      const container = document.getElementById(containerId);
+      const all = ["all", ...options];
+      container.innerHTML = all
+        .map(
+          (opt) =>
+            `<button class="filter-option${opt === active ? " active" : ""}" data-value="${opt}">${opt}</button>`
+        )
+        .join("");
+      container.querySelectorAll(".filter-option").forEach((btn) => {
+        btn.addEventListener("click", () => onSelect(btn.dataset.value));
+      });
+    }
+
+    function renderFilters() {
+      renderFilterGroup("category-filters", CATEGORIES, activeCategory, (value) => {
+        activeCategory = value;
+        renderFilters();
+        renderGrants();
+      });
+      renderFilterGroup("level-filters", LEVELS, activeLevel, (value) => {
+        activeLevel = value;
+        renderFilters();
+        renderGrants();
+      });
+    }
+
+    function deadlineBadge(grant) {
+      if (grant.is_manual) {
+        return `<span class="grant-deadline manual">${escapeHtml(grant.deadline_text)}</span>`;
+      }
+      if (!grant.deadline) {
+        return `<span class="grant-deadline manual">Check source for deadline</span>`;
+      }
+      const days = daysUntil(grant.deadline);
+      const closingSoon = days >= 0 && days <= CLOSING_SOON_DAYS;
+      return `<span class="grant-deadline${closingSoon ? " closing-soon" : ""}">${escapeHtml(grant.deadline_text)}</span>`;
+    }
+
+    function renderGrants() {
+      const container = document.getElementById("grants");
+      const emptyState = document.getElementById("empty-state");
+      const countEl = document.getElementById("results-count");
+      const filtered = allGrants.filter(
+        (g) =>
+          (activeCategory === "all" || g.category === activeCategory) &&
+          (activeLevel === "all" || g.level === activeLevel)
+      );
+
+      countEl.textContent = `${filtered.length} scholarship${filtered.length === 1 ? "" : "s"} found`;
+
+      if (filtered.length === 0) {
+        container.innerHTML = "";
+        emptyState.style.display = "block";
+        return;
+      }
+      emptyState.style.display = "none";
+
+      container.innerHTML = filtered
+        .map(
+          (grant) => `
+        <div class="grant-card">
+          <p class="grant-title">${escapeHtml(grant.title)}</p>
+          ${deadlineBadge(grant)}
+          ${grant.description ? `<p class="grant-description">${escapeHtml(grant.description)}</p>` : ""}
+          <div class="grant-meta">
+            ${isSafeUrl(grant.url) ? `<a href="${escapeAttr(grant.url)}" target="_blank" rel="noopener">${escapeHtml(grant.source)}</a>` : escapeHtml(grant.source)}
+            <span>${escapeHtml(grant.category)} &middot; ${escapeHtml(grant.level)}</span>
+          </div>
+        </div>`
+        )
+        .join("");
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str || "";
+      return div.innerHTML;
+    }
+
+    function escapeAttr(str) {
+      return str.replace(/"/g, "&quot;");
+    }
+
+    function isSafeUrl(str) {
+      return typeof str === "string" && (str.startsWith("http://") || str.startsWith("https://"));
+    }
+
+    function sortGrants(grants) {
+      return grants.slice().sort((a, b) => {
+        const aNull = !a.deadline;
+        const bNull = !b.deadline;
+        if (aNull !== bNull) return aNull ? 1 : -1;
+        if (aNull && bNull) return 0;
+        return a.deadline < b.deadline ? -1 : a.deadline > b.deadline ? 1 : 0;
+      });
+    }
+
+    Promise.all([
+      fetch("data/grants.json").then((res) => res.json()).catch(() => []),
+      fetch("data/manual_grants.json").then((res) => res.json()).catch(() => []),
+    ])
+      .then(([scraped, manual]) => {
+        allGrants = sortGrants([...scraped, ...manual]);
+        renderFilters();
+        renderGrants();
+      })
+      .catch(() => {
+        document.getElementById("grants").innerHTML =
+          '<p id="fetch-error">Could not load grants data.</p>';
+      });
+
+    fetch("data/last_run_errors.json")
+      .then((res) => res.json())
+      .then((errors) => {
+        if (!Array.isArray(errors) || errors.length === 0) return;
+        const status = document.getElementById("scraper-status");
+        const list = document.getElementById("scraper-errors");
+        list.innerHTML = errors
+          .map((e) => `<li>${escapeHtml(e.source || "unknown source")}: ${escapeHtml(e.error || "failed to fetch")}</li>`)
+          .join("");
+        status.style.display = "block";
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>

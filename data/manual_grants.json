@@ -1,0 +1,46 @@
+[
+  {
+    "title": "CHED Scholarship Programs (CMSP, Tulong Dunong, TES)",
+    "description": "Merit- and need-based undergraduate scholarships covering tuition, book allowances, and stipends. Eligibility and application periods vary by program and are announced on the official CHED site.",
+    "deadline": null,
+    "deadline_text": "Verify current application period on the official CHED site",
+    "url": "https://ched.gov.ph/scholarships-and-grants-programs/",
+    "category": "government",
+    "level": "undergrad",
+    "source": "CHED",
+    "is_manual": true
+  },
+  {
+    "title": "DOST-SEI Undergraduate Science and Technology Scholarship",
+    "description": "Tuition subsidy, monthly allowance, book and thesis grants for STEM undergraduates who pass the DOST-SEI qualifying exam.",
+    "deadline": null,
+    "deadline_text": "Verify current application period on the official DOST-SEI site",
+    "url": "https://sei.dost.gov.ph/index.php/programs-and-projects/undergraduate-scholarship",
+    "category": "government",
+    "level": "undergrad",
+    "source": "DOST-SEI",
+    "is_manual": true
+  },
+  {
+    "title": "OWWA Education for Development Scholarship Program (EDSP)",
+    "description": "Scholarship for dependents of Overseas Filipino Workers, covering tuition and living expenses.",
+    "deadline": null,
+    "deadline_text": "Verify current application period on the official OWWA site",
+    "url": "https://scholarship.owwa.gov.ph/",
+    "category": "government",
+    "level": "undergrad",
+    "source": "OWWA",
+    "is_manual": true
+  },
+  {
+    "title": "GSIS Scholarship Program",
+    "description": "Tuition coverage and living allowances for children of active GSIS members pursuing college education.",
+    "deadline": null,
+    "deadline_text": "Verify current application period on the official GSIS site",
+    "url": "https://www.gsis.gov.ph/",
+    "category": "government",
+    "level": "undergrad",
+    "source": "GSIS",
+    "is_manual": true
+  }
+]

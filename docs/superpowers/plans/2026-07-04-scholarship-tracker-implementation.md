@@ -28,6 +28,14 @@ GitHub Pages.
 - Dedup key for scraped grants: `(source, title)`.
 - Deadline retention: keep while `deadline >= scrape_date` if set; if
   `deadline` is null, keep while unseen ≤ 14 days from `last_seen`.
+- On re-seen (existing dedup key matched by a fresh scrape): if the fresh
+  scrape found a deadline (`deadline is not None`), overwrite `deadline`
+  and `deadline_text` with the fresh values. If the fresh scrape's
+  `deadline` is `None` but the existing record already has a non-null
+  `deadline`, preserve the existing `deadline`/`deadline_text` rather than
+  overwriting with null — a single cycle's extraction miss on an
+  otherwise-successful fetch must not silently downgrade a known-good
+  deadline to the 14-day fallback rule.
 - Manual entries (`is_manual: true`) live only in `data/manual_grants.json`,
   are never touched by the scraper's merge logic, and are excluded from
   the 14-day/deadline retention rules entirely.
@@ -709,6 +717,24 @@ def test_result_sorted_ascending_by_deadline_nulls_last():
     ]
     result = merge_grants(existing, [], scrape_date="2026-07-01")
     assert [g["title"] for g in result] == ["Sooner Deadline", "Later Deadline", "No Deadline"]
+
+
+def test_reseen_grant_with_null_fresh_deadline_preserves_existing_deadline():
+    existing = [_grant("Flaky Extraction Grant", "2026-01-01", "2026-01-01", deadline="2026-08-30", deadline_text="August 30, 2026")]
+    fresh = [_grant("Flaky Extraction Grant", "2026-07-04", "2026-07-04", deadline=None, deadline_text="")]
+    result = merge_grants(existing, fresh, scrape_date="2026-07-04")
+    assert len(result) == 1
+    assert result[0]["deadline"] == "2026-08-30"
+    assert result[0]["deadline_text"] == "August 30, 2026"
+    assert result[0]["last_seen"] == "2026-07-04"
+
+
+def test_reseen_grant_with_no_prior_deadline_and_null_fresh_deadline_stays_null():
+    existing = [_grant("Rolling Grant", "2026-01-01", "2026-01-01")]
+    fresh = [_grant("Rolling Grant", "2026-07-04", "2026-07-04")]
+    result = merge_grants(existing, fresh, scrape_date="2026-07-04")
+    assert len(result) == 1
+    assert result[0]["deadline"] is None
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -753,8 +779,9 @@ def merge_grants(existing: list, freshly_scraped: list, scrape_date: str) -> lis
         key = _dedup_key(grant)
         if key in by_key:
             by_key[key]["last_seen"] = scrape_date
-            by_key[key]["deadline"] = grant["deadline"]
-            by_key[key]["deadline_text"] = grant["deadline_text"]
+            if grant["deadline"] is not None or by_key[key]["deadline"] is None:
+                by_key[key]["deadline"] = grant["deadline"]
+                by_key[key]["deadline_text"] = grant["deadline_text"]
         else:
             by_key[key] = dict(grant)
 
@@ -802,7 +829,7 @@ if __name__ == "__main__":
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_merge.py -v`
-Expected: PASS (7 tests)
+Expected: PASS (9 tests)
 
 - [ ] **Step 5: Run the full test suite**
 

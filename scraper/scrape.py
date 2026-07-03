@@ -32,8 +32,9 @@ def merge_grants(existing: list, freshly_scraped: list, scrape_date: str) -> lis
         key = _dedup_key(grant)
         if key in by_key:
             by_key[key]["last_seen"] = scrape_date
-            by_key[key]["deadline"] = grant["deadline"]
-            by_key[key]["deadline_text"] = grant["deadline_text"]
+            if grant["deadline"] is not None or by_key[key]["deadline"] is None:
+                by_key[key]["deadline"] = grant["deadline"]
+                by_key[key]["deadline_text"] = grant["deadline_text"]
         else:
             by_key[key] = dict(grant)
 

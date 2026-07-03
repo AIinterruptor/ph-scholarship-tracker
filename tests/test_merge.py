@@ -66,3 +66,21 @@ def test_result_sorted_ascending_by_deadline_nulls_last():
     ]
     result = merge_grants(existing, [], scrape_date="2026-07-01")
     assert [g["title"] for g in result] == ["Sooner Deadline", "Later Deadline", "No Deadline"]
+
+
+def test_reseen_grant_with_null_fresh_deadline_preserves_existing_deadline():
+    existing = [_grant("Flaky Extraction Grant", "2026-01-01", "2026-01-01", deadline="2026-08-30", deadline_text="August 30, 2026")]
+    fresh = [_grant("Flaky Extraction Grant", "2026-07-04", "2026-07-04", deadline=None, deadline_text="")]
+    result = merge_grants(existing, fresh, scrape_date="2026-07-04")
+    assert len(result) == 1
+    assert result[0]["deadline"] == "2026-08-30"
+    assert result[0]["deadline_text"] == "August 30, 2026"
+    assert result[0]["last_seen"] == "2026-07-04"
+
+
+def test_reseen_grant_with_no_prior_deadline_and_null_fresh_deadline_stays_null():
+    existing = [_grant("Rolling Grant", "2026-01-01", "2026-01-01")]
+    fresh = [_grant("Rolling Grant", "2026-07-04", "2026-07-04")]
+    result = merge_grants(existing, fresh, scrape_date="2026-07-04")
+    assert len(result) == 1
+    assert result[0]["deadline"] is None

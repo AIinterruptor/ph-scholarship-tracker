@@ -894,6 +894,8 @@ git commit -m "Add deadline-based merge/retention logic and scrape orchestration
     --bg: #ffffff;
     --fg: #1a1a1a;
     --card-bg: #f5f5f5;
+    --sidebar-bg: #fafafa;
+    --border: #e0e0e0;
     --accent: #0a5bd7;
     --warn: #b7791f;
     --muted: #666666;
@@ -903,6 +905,8 @@ git commit -m "Add deadline-based merge/retention logic and scrape orchestration
       --bg: #121212;
       --fg: #e8e8e8;
       --card-bg: #1e1e1e;
+      --sidebar-bg: #181818;
+      --border: #333333;
       --accent: #5b9dff;
       --warn: #e0b04a;
       --muted: #a0a0a0;
@@ -914,23 +918,61 @@ git commit -m "Add deadline-based merge/retention logic and scrape orchestration
     background: var(--bg);
     color: var(--fg);
     margin: 0;
-    padding: 1.5rem;
-    max-width: 800px;
+  }
+  header.page-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  header.page-header h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+  header.page-header .subtitle { color: var(--muted); margin: 0; font-size: 0.9rem; }
+
+  .layout {
+    display: flex;
+    align-items: flex-start;
+    max-width: 1100px;
     margin-inline: auto;
   }
-  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
-  .subtitle { color: var(--muted); margin-top: 0; margin-bottom: 1.25rem; font-size: 0.9rem; }
-  .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
-  .filter-chip {
-    padding: 0.4rem 0.9rem;
-    border-radius: 999px;
-    border: 1px solid var(--muted);
-    background: transparent;
-    color: var(--fg);
-    cursor: pointer;
-    font-size: 0.85rem;
+
+  aside.sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    padding: 1.5rem 1rem;
+    border-right: 1px solid var(--border);
+    background: var(--sidebar-bg);
+    min-height: calc(100vh - 80px);
   }
-  .filter-chip.active { background: var(--accent); color: #ffffff; border-color: var(--accent); }
+  .filter-group { margin-bottom: 1.5rem; }
+  .filter-group h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 0 0 0.6rem;
+  }
+  .filter-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--fg);
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+  }
+  .filter-option:hover { background: var(--card-bg); }
+  .filter-option.active { background: var(--accent); color: #ffffff; }
+
+  main.results {
+    flex: 1;
+    padding: 1.5rem;
+    min-width: 0;
+  }
+  .results-count { color: var(--muted); font-size: 0.85rem; margin: 0 0 1rem; }
+
   .grant-card {
     background: var(--card-bg);
     border-radius: 12px;
@@ -948,19 +990,39 @@ git commit -m "Add deadline-based merge/retention logic and scrape orchestration
   #scraper-status { color: var(--muted); font-size: 0.8rem; margin-top: 1.5rem; }
   #scraper-status summary { cursor: pointer; }
   #scraper-status ul { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+
+  @media (max-width: 700px) {
+    .layout { flex-direction: column; }
+    aside.sidebar { width: 100%; min-height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  }
 </style>
 </head>
 <body>
-  <h1>PH Scholarship Grants Tracker</h1>
-  <p class="subtitle">Philippine scholarship and grant opportunities, scraped daily. Sorted by soonest deadline.</p>
-  <div class="filters" id="category-filters"></div>
-  <div class="filters" id="level-filters"></div>
-  <div id="grants"></div>
-  <div id="empty-state" style="display:none;">No grants match this filter.</div>
-  <details id="scraper-status" style="display:none;">
-    <summary>Scraper status</summary>
-    <ul id="scraper-errors"></ul>
-  </details>
+  <header class="page-header">
+    <h1>PH Scholarship Grants Tracker</h1>
+    <p class="subtitle">Philippine scholarship and grant opportunities, scraped daily. Sorted by soonest deadline.</p>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="filter-group">
+        <h2>Category</h2>
+        <div id="category-filters"></div>
+      </div>
+      <div class="filter-group">
+        <h2>Level</h2>
+        <div id="level-filters"></div>
+      </div>
+    </aside>
+    <main class="results">
+      <p class="results-count" id="results-count"></p>
+      <div id="grants"></div>
+      <div id="empty-state" style="display:none;">No grants match this filter.</div>
+      <details id="scraper-status" style="display:none;">
+        <summary>Scraper status</summary>
+        <ul id="scraper-errors"></ul>
+      </details>
+    </main>
+  </div>
 
   <script>
     const CATEGORIES = ["government", "private", "global", "ngo"];
@@ -981,10 +1043,10 @@ git commit -m "Add deadline-based merge/retention logic and scrape orchestration
       container.innerHTML = all
         .map(
           (opt) =>
-            `<button class="filter-chip${opt === active ? " active" : ""}" data-value="${opt}">${opt}</button>`
+            `<button class="filter-option${opt === active ? " active" : ""}" data-value="${opt}">${opt}</button>`
         )
         .join("");
-      container.querySelectorAll(".filter-chip").forEach((btn) => {
+      container.querySelectorAll(".filter-option").forEach((btn) => {
         btn.addEventListener("click", () => onSelect(btn.dataset.value));
       });
     }
@@ -1017,11 +1079,14 @@ git commit -m "Add deadline-based merge/retention logic and scrape orchestration
     function renderGrants() {
       const container = document.getElementById("grants");
       const emptyState = document.getElementById("empty-state");
+      const countEl = document.getElementById("results-count");
       const filtered = allGrants.filter(
         (g) =>
           (activeCategory === "all" || g.category === activeCategory) &&
           (activeLevel === "all" || g.level === activeLevel)
       );
+
+      countEl.textContent = `${filtered.length} scholarship${filtered.length === 1 ? "" : "s"} found`;
 
       if (filtered.length === 0) {
         container.innerHTML = "";
@@ -1111,7 +1176,10 @@ on each individual fetch means a missing `grants.json` should NOT trigger
 the outer catch — verify this by temporarily creating an empty
 `data/manual_grants.json`-only scenario: with only `manual_grants.json`
 present, the four manual entries should render correctly with their
-"Verify current application period..." badges. Stop the server with
+"Verify current application period..." badges in the right-hand results
+pane, with the left sidebar's category/level filters narrowing the list
+and the results count updating accordingly. Confirm the layout collapses
+to a stacked (sidebar-on-top) view below 700px width. Stop the server with
 Ctrl+C when done.
 
 - [ ] **Step 4: Commit**
